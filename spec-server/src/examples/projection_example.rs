@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 /// Demonstrates the projection system providing fast queries
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 

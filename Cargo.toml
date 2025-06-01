@@ -13,15 +13,42 @@ authors = ["Your Name <your.email@example.com>"]
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
+# Core dependencies
 tokio = { version = "1.40", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 serde_yaml = "0.9"
+
+# Database
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+
+# Web frameworks
 axum = "0.7"
-tonic = "0.11"
-prost = "0.12"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "cors"] }
+
+# gRPC
+tonic = "0.12"
+prost = "0.13"
+prost-types = "0.13"
+
+# Build dependencies
+tonic-build = "0.12"
+
+# Error handling and utilities
 thiserror = "2.0"
+anyhow = "1.0"
+
+# Time and IDs
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.10", features = ["v4", "serde"] }
+
+# Observability
 tracing = "0.1"
 tracing-subscriber = "0.3"
+
+# Configuration
+dotenv = "0.15"
+
+# Dev dependencies
+tempfile = "3.13"

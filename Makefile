@@ -25,7 +25,8 @@ CLIPPY_FLAGS = -D clippy::all \
                -A clippy::missing_errors_doc \
                -A clippy::missing_panics_doc \
                -A clippy::missing_docs_in_private_items \
-               -A clippy::missing_const_for_fn
+               -A clippy::missing_const_for_fn \
+               -A clippy::multiple_crate_versions
 
 CLIPPY_EXAMPLE_FLAGS = $(CLIPPY_FLAGS) \
                        -A clippy::uninlined_format_args \
