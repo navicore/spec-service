@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package spec;
+
+import "google/protobuf/timestamp.proto";
+
+service SpecService {
+    rpc CreateSpec(CreateSpecRequest) returns (CreateSpecResponse);
+    rpc UpdateSpec(UpdateSpecRequest) returns (UpdateSpecResponse);
+    rpc GetSpec(GetSpecRequest) returns (GetSpecResponse);
+    rpc ListSpecs(ListSpecsRequest) returns (ListSpecsResponse);
+    rpc PublishSpec(PublishSpecRequest) returns (PublishSpecResponse);
+    rpc DeprecateSpec(DeprecateSpecRequest) returns (DeprecateSpecResponse);
+    rpc GetSpecHistory(GetSpecHistoryRequest) returns (GetSpecHistoryResponse);
+}
+
+message CreateSpecRequest {
+    string name = 1;
+    string content = 2;
+    string description = 3;
+}
+
+message CreateSpecResponse {
+    string id = 1;
+    uint32 version = 2;
+}
+
+message UpdateSpecRequest {
+    string id = 1;
+    string content = 2;
+    optional string description = 3;
+}
+
+message UpdateSpecResponse {
+    uint32 version = 1;
+}
+
+message GetSpecRequest {
+    string id = 1;
+    optional uint32 version = 2;
+}
+
+message GetSpecResponse {
+    string id = 1;
+    string name = 2;
+    string content = 3;
+    string description = 4;
+    uint32 version = 5;
+    SpecState state = 6;
+    google.protobuf.Timestamp created_at = 7;
+    google.protobuf.Timestamp updated_at = 8;
+}
+
+message ListSpecsRequest {
+    optional SpecState state = 1;
+    uint32 page_size = 2;
+    optional string page_token = 3;
+}
+
+message ListSpecsResponse {
+    repeated SpecSummary specs = 1;
+    string next_page_token = 2;
+}
+
+message SpecSummary {
+    string id = 1;
+    string name = 2;
+    string description = 3;
+    uint32 latest_version = 4;
+    SpecState state = 5;
+    google.protobuf.Timestamp updated_at = 6;
+}
+
+message PublishSpecRequest {
+    string id = 1;
+    optional uint32 version = 2;
+}
+
+message PublishSpecResponse {
+    uint32 published_version = 1;
+}
+
+message DeprecateSpecRequest {
+    string id = 1;
+    string reason = 2;
+}
+
+message DeprecateSpecResponse {
+    bool success = 1;
+}
+
+message GetSpecHistoryRequest {
+    string id = 1;
+}
+
+message GetSpecHistoryResponse {
+    repeated SpecEvent events = 1;
+}
+
+message SpecEvent {
+    string event_id = 1;
+    EventType event_type = 2;
+    google.protobuf.Timestamp occurred_at = 3;
+    string user_id = 4;
+    oneof payload {
+        CreatePayload create = 5;
+        UpdatePayload update = 6;
+        StateChangePayload state_change = 7;
+    }
+}
+
+message CreatePayload {
+    string name = 1;
+    string content = 2;
+    string description = 3;
+}
+
+message UpdatePayload {
+    string content = 1;
+    optional string description = 2;
+}
+
+message StateChangePayload {
+    SpecState from_state = 1;
+    SpecState to_state = 2;
+    optional string reason = 3;
+}
+
+enum SpecState {
+    DRAFT = 0;
+    PUBLISHED = 1;
+    DEPRECATED = 2;
+    DELETED = 3;
+}
+
+enum EventType {
+    CREATED = 0;
+    UPDATED = 1;
+    STATE_CHANGED = 2;
+}

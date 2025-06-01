@@ -1,0 +1,255 @@
+@startuml building-block-diagram
+!define RECTANGLE class
+
+title Spec Service - Building Block Diagram
+
+package "spec-server" {
+  package "api" {
+    [REST API] as rest
+    [gRPC API] as grpc
+  }
+  
+  package "application" {
+    [Command Handler] as cmd_handler
+    [Query Handler] as query_handler
+    [Event Bus] as event_bus
+  }
+  
+  package "domain" {
+    [Spec Aggregate] as aggregate
+    [Commands] as commands
+    [Events] as events
+    [Value Objects] as value_objects
+  }
+  
+  package "infrastructure" {
+    [SQLite Event Store] as event_store
+    [Projections] as projections
+    [Repositories] as repos
+  }
+}
+
+' API layer dependencies
+rest --> cmd_handler
+rest --> query_handler
+grpc --> cmd_handler
+grpc --> query_handler
+
+' Application layer dependencies
+cmd_handler --> aggregate
+cmd_handler --> event_store
+cmd_handler --> event_bus
+
+query_handler --> projections
+query_handler --> repos
+
+event_bus --> projections
+
+' Domain layer dependencies
+aggregate --> commands
+aggregate --> events
+aggregate --> value_objects
+
+' Infrastructure dependencies
+event_store --> events
+projections --> events
+repos --> projections
+
+note right of aggregate
+  Enforces business rules:
+  - State transitions
+  - Version management
+  - Validation
+end note
+
+note bottom of event_store
+  Append-only event log
+  with SQLite persistence
+end note
+
+@enduml
+
+@startuml runtime-sequence-diagram
+!theme plain
+
+title Spec Service - Runtime View: Create and Publish Spec
+
+actor User
+participant "REST API" as api
+participant "Command\nHandler" as handler
+participant "Spec\nAggregate" as aggregate
+participant "Event Store" as store
+participant "Event Bus" as bus
+participant "Projections" as proj
+database "SQLite" as db
+
+== Create Spec ==
+User -> api: POST /specs\n{name, content, description}
+api -> handler: CreateSpec command
+handler -> aggregate: Spec::create(command)
+aggregate -> aggregate: Validate name\nValidate YAML
+aggregate --> handler: [SpecCreated event]
+handler -> store: append_events()
+store -> db: INSERT INTO events
+store --> handler: EventEnvelope
+handler -> bus: publish(event)
+bus -> proj: update_projection()
+proj -> db: INSERT INTO specs_current
+handler --> api: {id, version: 1}
+api --> User: 201 Created\n{id, version}
+
+== Update Spec ==
+User -> api: PUT /specs/{id}\n{content}
+api -> handler: UpdateSpec command
+handler -> store: get_events(id)
+store -> db: SELECT FROM events
+store --> handler: [events]
+handler -> aggregate: from_events(events)
+handler -> aggregate: handle_command(UpdateSpec)
+aggregate -> aggregate: Check state != Deleted
+aggregate --> handler: [SpecUpdated event]
+handler -> store: append_events()
+store -> db: INSERT INTO events
+handler -> bus: publish(event)
+bus -> proj: update_projection()
+proj -> db: UPDATE specs_current
+handler --> api: {version: 2}
+api --> User: 200 OK
+
+== Publish Spec ==
+User -> api: POST /specs/{id}/publish
+api -> handler: PublishSpec command
+handler -> store: get_events(id)
+store --> handler: [events]
+handler -> aggregate: from_events(events)
+aggregate -> aggregate: Check state == Draft
+handler -> aggregate: handle_command(PublishSpec)
+aggregate --> handler: [StateChanged event]
+handler -> store: append_events()
+store -> db: INSERT INTO events
+handler -> bus: publish(event)
+bus -> proj: update_projection()
+proj -> db: UPDATE specs_current\nSET state='published'
+handler --> api: {success: true}
+api --> User: 200 OK
+
+@enduml
+
+@startuml deployment-diagram
+!theme plain
+
+title Spec Service - Deployment View
+
+node "Development Environment" as dev {
+  component "spec-server" as dev_server {
+    [Rust Binary]
+    database "SQLite\n(file)" as dev_db
+  }
+  
+  note bottom of dev_server
+    Single binary with
+    embedded database
+  end note
+}
+
+node "Production Environment\n(Initial)" as prod1 {
+  component "Docker Container" as container1 {
+    [spec-server]
+    database "SQLite\n(volume)" as prod_db1
+  }
+  
+  component "Reverse Proxy" as proxy1 {
+    [nginx/traefik]
+  }
+  
+  proxy1 --> container1: HTTP/gRPC
+}
+
+node "Production Environment\n(Scaled)" as prod2 {
+  component "Load Balancer" as lb
+  
+  component "spec-server-1" as server1
+  component "spec-server-2" as server2
+  component "spec-server-n" as servern
+  
+  database "PostgreSQL\n(Event Store)" as pg {
+    [events table]
+    [projections]
+  }
+  
+  component "Redis" as cache {
+    [Query Cache]
+  }
+  
+  lb --> server1
+  lb --> server2
+  lb --> servern
+  
+  server1 --> pg
+  server2 --> pg
+  servern --> pg
+  
+  server1 --> cache
+  server2 --> cache
+  servern --> cache
+}
+
+cloud "Clients" as clients {
+  [Web UI]
+  [TUI]
+  [Other Services]
+}
+
+clients --> dev: Development
+clients --> proxy1: Production (Initial)
+clients --> lb: Production (Scaled)
+
+note right of prod2
+  Future scaling path:
+  - PostgreSQL for events
+  - Redis for caching
+  - Multiple instances
+  - Still event sourced
+end note
+
+@enduml
+
+@startuml context-diagram
+!theme plain
+
+title Spec Service - System Context
+
+actor "Developer" as dev
+actor "Operations" as ops
+actor "Compliance Officer" as compliance
+actor "Service Consumer" as consumer
+
+rectangle "Spec Service" as spec_service {
+  usecase "Manage Specs" as uc1
+  usecase "Query Versions" as uc2
+  usecase "Audit Trail" as uc3
+  usecase "State Transitions" as uc4
+}
+
+rectangle "External Systems" as external {
+  component "Monitoring\n(Prometheus)" as monitoring
+  component "Log Aggregation\n(ELK)" as logging
+  component "CI/CD Pipeline" as cicd
+}
+
+dev --> uc1: Create/Update specs
+dev --> uc2: Test with versions
+ops --> uc4: Publish/Deprecate
+compliance --> uc3: Review changes
+consumer --> uc2: Fetch current specs
+
+spec_service --> monitoring: Metrics
+spec_service --> logging: Structured logs
+cicd --> spec_service: Deploy specs
+
+note bottom of spec_service
+  Event sourced architecture ensures
+  complete audit trail and version history
+end note
+
+@enduml
