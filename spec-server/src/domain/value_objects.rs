@@ -12,7 +12,10 @@ impl SpecName {
         if name.len() > 255 {
             return Err(ValidationError::NameTooLong);
         }
-        if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') {
+        if !name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
+        {
             return Err(ValidationError::InvalidCharacters);
         }
         Ok(Self(name))

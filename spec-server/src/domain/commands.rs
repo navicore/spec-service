@@ -1,6 +1,7 @@
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum SpecCommand {
     Create(CreateSpec),
     Update(UpdateSpec),
@@ -18,6 +19,7 @@ pub struct CreateSpec {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct UpdateSpec {
     pub spec_id: Uuid,
     pub content: String,
@@ -26,6 +28,7 @@ pub struct UpdateSpec {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PublishSpec {
     pub spec_id: Uuid,
     pub version: Option<u32>,
@@ -33,6 +36,7 @@ pub struct PublishSpec {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct DeprecateSpec {
     pub spec_id: Uuid,
     pub reason: String,
@@ -40,11 +44,13 @@ pub struct DeprecateSpec {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct DeleteSpec {
     pub spec_id: Uuid,
     pub deleted_by: String,
 }
 
+#[allow(dead_code)]
 pub struct CommandContext {
     pub correlation_id: Option<Uuid>,
     pub causation_id: Option<Uuid>,

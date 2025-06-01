@@ -9,6 +9,7 @@ use super::{
 };
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Spec {
     pub id: Uuid,
     pub name: SpecName,
@@ -23,10 +24,7 @@ pub struct Spec {
 }
 
 impl Spec {
-    pub fn handle_command(
-        &self,
-        command: SpecCommand,
-    ) -> Result<Vec<SpecEvent>, DomainError> {
+    pub fn handle_command(&self, command: SpecCommand) -> Result<Vec<SpecEvent>, DomainError> {
         match command {
             SpecCommand::Create(_) => Err(DomainError::DuplicateSpecName(self.name.to_string())),
             SpecCommand::Update(cmd) => self.handle_update(cmd),
@@ -157,10 +155,11 @@ impl Spec {
 
     pub fn from_events(events: Vec<SpecEvent>) -> Result<Self, DomainError> {
         let mut events_iter = events.into_iter();
-        
-        let first_event = events_iter.next()
+
+        let first_event = events_iter
+            .next()
             .ok_or_else(|| DomainError::EventStoreError("No events found".to_string()))?;
-        
+
         let mut spec = match first_event {
             SpecEvent::Created(e) => Self {
                 id: e.spec_id,
@@ -174,9 +173,11 @@ impl Spec {
                 created_by: e.created_by.clone(),
                 updated_by: e.created_by,
             },
-            _ => return Err(DomainError::EventStoreError(
-                "First event must be Created".to_string()
-            )),
+            _ => {
+                return Err(DomainError::EventStoreError(
+                    "First event must be Created".to_string(),
+                ))
+            }
         };
 
         for event in events_iter {

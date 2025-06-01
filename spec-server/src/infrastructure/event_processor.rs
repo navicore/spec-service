@@ -31,7 +31,7 @@ impl EventProcessor {
     /// Start processing events from the given position
     pub async fn start(mut self, from_position: i64) -> Result<()> {
         info!("Starting event processor from position {}", from_position);
-        
+
         let mut current_position = from_position;
         let batch_size = 100;
         let poll_interval = Duration::from_millis(100);
@@ -69,17 +69,20 @@ impl EventProcessor {
         Ok(())
     }
 
-    async fn process_batch(
-        &self,
-        from_position: i64,
-        limit: i64,
-    ) -> Result<usize, DomainError> {
-        let events = self.event_store.get_all_events(from_position, limit).await?;
-        
+    async fn process_batch(&self, from_position: i64, limit: i64) -> Result<usize, DomainError> {
+        let events = self
+            .event_store
+            .get_all_events(from_position, limit)
+            .await?;
+
         let mut processed_count = 0;
-        
+
         for (aggregate_id, envelope) in events {
-            match self.projection_store.apply_event(aggregate_id, &envelope.event).await {
+            match self
+                .projection_store
+                .apply_event(aggregate_id, &envelope.event)
+                .await
+            {
                 Ok(_) => {
                     processed_count += 1;
                 }
@@ -104,10 +107,7 @@ pub struct EventProcessorManager {
 }
 
 impl EventProcessorManager {
-    pub fn new(
-        event_store: Arc<SqliteEventStore>,
-        projection_store: Arc<ProjectionStore>,
-    ) -> Self {
+    pub fn new(event_store: Arc<SqliteEventStore>, projection_store: Arc<ProjectionStore>) -> Self {
         Self {
             event_store,
             projection_store,
@@ -117,7 +117,7 @@ impl EventProcessorManager {
     /// Start the event processor in a background task
     pub fn start_background(self) -> (tokio::task::JoinHandle<Result<()>>, mpsc::Sender<()>) {
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
-        
+
         let processor = EventProcessor::new(
             self.event_store.clone(),
             self.projection_store.clone(),
@@ -127,23 +127,22 @@ impl EventProcessorManager {
         // TODO: Load last processed position from checkpoint table
         let from_position = 0;
 
-        let handle = tokio::spawn(async move {
-            processor.start(from_position).await
-        });
+        let handle = tokio::spawn(async move { processor.start(from_position).await });
 
         (handle, shutdown_tx)
     }
 
     /// Rebuild all projections from scratch
+    #[allow(dead_code)]
     pub async fn rebuild_projections(&self) -> Result<(), DomainError> {
         info!("Rebuilding all projections from events");
-        
+
         // Clear existing projections
         sqlx::query("DELETE FROM spec_projections")
             .execute(&self.projection_store.pool)
             .await
             .map_err(|e| DomainError::ProjectionError(e.to_string()))?;
-        
+
         sqlx::query("DELETE FROM spec_version_history")
             .execute(&self.projection_store.pool)
             .await
@@ -152,22 +151,27 @@ impl EventProcessorManager {
         // Process all events from the beginning
         let mut position = 0;
         let batch_size = 1000;
-        
+
         loop {
-            let events = self.event_store.get_all_events(position, batch_size).await?;
-            
+            let events = self
+                .event_store
+                .get_all_events(position, batch_size)
+                .await?;
+
             if events.is_empty() {
                 break;
             }
-            
+
             for (aggregate_id, envelope) in &events {
-                self.projection_store.apply_event(*aggregate_id, &envelope.event).await?;
+                self.projection_store
+                    .apply_event(*aggregate_id, &envelope.event)
+                    .await?;
             }
-            
+
             position += events.len() as i64;
             info!("Rebuilt {} projections", position);
         }
-        
+
         info!("Projection rebuild complete");
         Ok(())
     }

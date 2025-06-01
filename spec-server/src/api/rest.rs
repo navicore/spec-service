@@ -120,7 +120,7 @@ pub fn create_router(state: AppState) -> Router {
         .with_state(state)
 }
 
-/// Handler functions
+// Handler functions
 
 async fn create_spec(
     State(state): State<AppState>,
@@ -136,8 +136,7 @@ async fn create_spec(
         created_by: user.to_string(),
     };
 
-    let events = Spec::create(command)
-        .map_err(|e| handle_domain_error(e))?;
+    let events = Spec::create(command).map_err(handle_domain_error)?;
 
     let spec_id = match &events[0] {
         SpecEvent::Created(e) => e.spec_id,
@@ -151,10 +150,11 @@ async fn create_spec(
         ip_address: None, // TODO: Extract from connection
     };
 
-    state.event_store
+    state
+        .event_store
         .append_events(spec_id, events, metadata)
         .await
-        .map_err(|e| handle_domain_error(e))?;
+        .map_err(handle_domain_error)?;
 
     Ok((
         StatusCode::CREATED,
@@ -169,10 +169,11 @@ async fn get_spec(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<SpecResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let spec = state.projection_store
+    let spec = state
+        .projection_store
         .get_by_id(id)
         .await
-        .map_err(|e| handle_domain_error(e))?
+        .map_err(handle_domain_error)?
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
@@ -192,10 +193,11 @@ async fn update_spec(
     Json(req): Json<UpdateSpecRequest>,
 ) -> Result<Json<UpdateSpecResponse>, (StatusCode, Json<ErrorResponse>)> {
     // Load current state from events
-    let events = state.event_store
+    let events = state
+        .event_store
         .get_events(id, None)
         .await
-        .map_err(|e| handle_domain_error(e))?;
+        .map_err(handle_domain_error)?;
 
     if events.is_empty() {
         return Err((
@@ -208,7 +210,7 @@ async fn update_spec(
     }
 
     let spec = Spec::from_events(events.into_iter().map(|e| e.event).collect())
-        .map_err(|e| handle_domain_error(e))?;
+        .map_err(handle_domain_error)?;
 
     let user = "user@example.com"; // TODO: From auth
 
@@ -219,18 +221,20 @@ async fn update_spec(
         updated_by: user.to_string(),
     };
 
-    let new_events = spec.handle_command(command.into())
-        .map_err(|e| handle_domain_error(e))?;
+    let new_events = spec
+        .handle_command(command.into())
+        .map_err(handle_domain_error)?;
 
     let new_version = match &new_events[0] {
         SpecEvent::Updated(e) => e.version,
         _ => unreachable!(),
     };
 
-    state.event_store
+    state
+        .event_store
         .append_events(id, new_events, EventMetadata::default())
         .await
-        .map_err(|e| handle_domain_error(e))?;
+        .map_err(handle_domain_error)?;
 
     Ok(Json(UpdateSpecResponse {
         version: new_version,
@@ -242,10 +246,11 @@ async fn publish_spec(
     Path(id): Path<Uuid>,
     Json(req): Json<PublishSpecRequest>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    let events = state.event_store
+    let events = state
+        .event_store
         .get_events(id, None)
         .await
-        .map_err(|e| handle_domain_error(e))?;
+        .map_err(handle_domain_error)?;
 
     if events.is_empty() {
         return Err((
@@ -258,7 +263,7 @@ async fn publish_spec(
     }
 
     let spec = Spec::from_events(events.into_iter().map(|e| e.event).collect())
-        .map_err(|e| handle_domain_error(e))?;
+        .map_err(handle_domain_error)?;
 
     let user = "admin@example.com"; // TODO: From auth, check permissions
 
@@ -268,13 +273,15 @@ async fn publish_spec(
         published_by: user.to_string(),
     };
 
-    let new_events = spec.handle_command(command.into())
-        .map_err(|e| handle_domain_error(e))?;
+    let new_events = spec
+        .handle_command(command.into())
+        .map_err(handle_domain_error)?;
 
-    state.event_store
+    state
+        .event_store
         .append_events(id, new_events, EventMetadata::default())
         .await
-        .map_err(|e| handle_domain_error(e))?;
+        .map_err(handle_domain_error)?;
 
     Ok(StatusCode::OK)
 }
@@ -284,10 +291,11 @@ async fn deprecate_spec(
     Path(id): Path<Uuid>,
     Json(req): Json<DeprecateSpecRequest>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    let events = state.event_store
+    let events = state
+        .event_store
         .get_events(id, None)
         .await
-        .map_err(|e| handle_domain_error(e))?;
+        .map_err(handle_domain_error)?;
 
     if events.is_empty() {
         return Err((
@@ -300,7 +308,7 @@ async fn deprecate_spec(
     }
 
     let spec = Spec::from_events(events.into_iter().map(|e| e.event).collect())
-        .map_err(|e| handle_domain_error(e))?;
+        .map_err(handle_domain_error)?;
 
     let user = "admin@example.com"; // TODO: From auth, check permissions
 
@@ -310,13 +318,15 @@ async fn deprecate_spec(
         deprecated_by: user.to_string(),
     };
 
-    let new_events = spec.handle_command(command.into())
-        .map_err(|e| handle_domain_error(e))?;
+    let new_events = spec
+        .handle_command(command.into())
+        .map_err(handle_domain_error)?;
 
-    state.event_store
+    state
+        .event_store
         .append_events(id, new_events, EventMetadata::default())
         .await
-        .map_err(|e| handle_domain_error(e))?;
+        .map_err(handle_domain_error)?;
 
     Ok(StatusCode::OK)
 }
@@ -336,10 +346,11 @@ async fn list_specs(
     let limit = query.limit.unwrap_or(20).min(100);
     let offset = query.offset.unwrap_or(0);
 
-    let specs = state.projection_store
+    let specs = state
+        .projection_store
         .list_by_state(state_filter, limit, offset)
         .await
-        .map_err(|e| handle_domain_error(e))?;
+        .map_err(handle_domain_error)?;
 
     let total = specs.len();
 
@@ -355,10 +366,11 @@ async fn get_spec_version(
     State(state): State<AppState>,
     Path((id, version)): Path<(Uuid, u32)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
-    let (content, description) = state.projection_store
+    let (content, description) = state
+        .projection_store
         .get_version(id, version)
         .await
-        .map_err(|e| handle_domain_error(e))?
+        .map_err(handle_domain_error)?
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
@@ -381,15 +393,20 @@ async fn health_check() -> StatusCode {
     StatusCode::OK
 }
 
-/// Helper functions
+// Helper functions
 
 fn handle_domain_error(error: DomainError) -> (StatusCode, Json<ErrorResponse>) {
     let (status, message) = match &error {
         DomainError::SpecNotFound(_) => (StatusCode::NOT_FOUND, "Spec not found"),
-        DomainError::InvalidStateTransition { .. } => (StatusCode::BAD_REQUEST, "Invalid state transition"),
+        DomainError::InvalidStateTransition { .. } => {
+            (StatusCode::BAD_REQUEST, "Invalid state transition")
+        }
         DomainError::VersionMismatch { .. } => (StatusCode::CONFLICT, "Version mismatch"),
         DomainError::DuplicateSpecName(_) => (StatusCode::CONFLICT, "Spec name already exists"),
-        DomainError::InvalidStateForOperation(_) => (StatusCode::BAD_REQUEST, "Invalid operation for current state"),
+        DomainError::InvalidStateForOperation(_) => (
+            StatusCode::BAD_REQUEST,
+            "Invalid operation for current state",
+        ),
         DomainError::ValidationError(_) => (StatusCode::BAD_REQUEST, "Validation failed"),
         _ => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
     };

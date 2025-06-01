@@ -48,7 +48,7 @@ impl SqliteEventStore {
         )
         .execute(&self.pool)
         .await?;
-        
+
         Ok(())
     }
 
@@ -58,7 +58,10 @@ impl SqliteEventStore {
         events: Vec<SpecEvent>,
         metadata: EventMetadata,
     ) -> Result<Vec<EventEnvelope>, DomainError> {
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| DomainError::EventStoreError(e.to_string()))?;
 
         let last_sequence = sqlx::query_scalar::<_, i64>(
@@ -75,7 +78,7 @@ impl SqliteEventStore {
         for (i, event) in events.into_iter().enumerate() {
             let event_id = Uuid::new_v4();
             let sequence_number = last_sequence + i as i64 + 1;
-            
+
             let event_type = match &event {
                 SpecEvent::Created(_) => "created",
                 SpecEvent::Updated(_) => "updated",
@@ -84,7 +87,7 @@ impl SqliteEventStore {
 
             let event_data = serde_json::to_string(&event)
                 .map_err(|e| DomainError::EventStoreError(e.to_string()))?;
-            
+
             let metadata_json = serde_json::to_string(&metadata)
                 .map_err(|e| DomainError::EventStoreError(e.to_string()))?;
 
@@ -116,7 +119,8 @@ impl SqliteEventStore {
             });
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::EventStoreError(e.to_string()))?;
 
         Ok(envelopes)
@@ -128,7 +132,7 @@ impl SqliteEventStore {
         from_sequence: Option<i64>,
     ) -> Result<Vec<EventEnvelope>, DomainError> {
         let from_sequence = from_sequence.unwrap_or(0);
-        
+
         let rows = sqlx::query(
             r#"
             SELECT event_id, sequence_number, event_data, metadata
@@ -144,7 +148,7 @@ impl SqliteEventStore {
         .map_err(|e| DomainError::EventStoreError(e.to_string()))?;
 
         let mut envelopes = Vec::new();
-        
+
         for row in rows {
             let event_id: String = row.get("event_id");
             let sequence_number: i64 = row.get("sequence_number");
@@ -153,7 +157,7 @@ impl SqliteEventStore {
 
             let event: SpecEvent = serde_json::from_str(&event_data)
                 .map_err(|e| DomainError::EventStoreError(e.to_string()))?;
-            
+
             let metadata: EventMetadata = serde_json::from_str(&metadata_json)
                 .map_err(|e| DomainError::EventStoreError(e.to_string()))?;
 
@@ -191,7 +195,7 @@ impl SqliteEventStore {
         .map_err(|e| DomainError::EventStoreError(e.to_string()))?;
 
         let mut results = Vec::new();
-        
+
         for row in rows {
             let event_id: String = row.get("event_id");
             let aggregate_id: String = row.get("aggregate_id");
@@ -201,7 +205,7 @@ impl SqliteEventStore {
 
             let event: SpecEvent = serde_json::from_str(&event_data)
                 .map_err(|e| DomainError::EventStoreError(e.to_string()))?;
-            
+
             let metadata: EventMetadata = serde_json::from_str(&metadata_json)
                 .map_err(|e| DomainError::EventStoreError(e.to_string()))?;
 

@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
 
     // Example 1: Create a new spec
     println!("=== Creating a new spec ===");
-    
+
     let create_cmd = CreateSpec {
         name: "regex-validator".to_string(),
         content: r#"
@@ -29,7 +29,8 @@ rules:
   - pattern: "[0-9]"
     description: "Contains digit"
     operator: NOT
-"#.to_string(),
+"#
+        .to_string(),
         description: Some("Validates capitalized words without digits".to_string()),
         created_by: "alice@example.com".to_string(),
     };
@@ -47,7 +48,9 @@ rules:
         ip_address: Some("127.0.0.1".to_string()),
     };
 
-    event_store.append_events(spec_id, events, metadata.clone()).await?;
+    event_store
+        .append_events(spec_id, events, metadata.clone())
+        .await?;
     println!("Created spec with ID: {}", spec_id);
 
     // Load the spec from events
@@ -57,7 +60,7 @@ rules:
 
     // Example 2: Update the spec
     println!("\n=== Updating the spec ===");
-    
+
     let update_cmd = UpdateSpec {
         spec_id,
         content: r#"
@@ -71,14 +74,17 @@ rules:
   - pattern: ".{3,}"
     description: "At least 3 characters"
     operator: AND
-"#.to_string(),
+"#
+        .to_string(),
         description: Some("Updated: Added minimum length requirement".to_string()),
         updated_by: "bob@example.com".to_string(),
     };
 
     let update_events = spec.handle_command(IntoSpecCommand::into(update_cmd))?;
-    event_store.append_events(spec_id, update_events, metadata.clone()).await?;
-    
+    event_store
+        .append_events(spec_id, update_events, metadata.clone())
+        .await?;
+
     // Reload spec
     let events = event_store.get_events(spec_id, None).await?;
     let spec = Spec::from_events(events.into_iter().map(|e| e.event).collect())?;
@@ -86,7 +92,7 @@ rules:
 
     // Example 3: Publish the spec
     println!("\n=== Publishing the spec ===");
-    
+
     let publish_cmd = PublishSpec {
         spec_id,
         version: Some(spec.version.as_u32()),
@@ -94,8 +100,10 @@ rules:
     };
 
     let publish_events = spec.handle_command(IntoSpecCommand::into(publish_cmd))?;
-    event_store.append_events(spec_id, publish_events, metadata).await?;
-    
+    event_store
+        .append_events(spec_id, publish_events, metadata)
+        .await?;
+
     // Reload spec to see final state
     let events = event_store.get_events(spec_id, None).await?;
     let spec = Spec::from_events(events.into_iter().map(|e| e.event).collect())?;

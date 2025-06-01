@@ -51,7 +51,7 @@ impl ProjectionStore {
         } else {
             Arc::new(RwLock::new(None))
         };
-        
+
         Ok(Self { pool, cache })
     }
 
@@ -94,7 +94,7 @@ impl ProjectionStore {
         )
         .execute(&self.pool)
         .await?;
-        
+
         Ok(())
     }
 
@@ -111,8 +111,14 @@ impl ProjectionStore {
         }
     }
 
-    async fn handle_created(&self, event: &crate::domain::events::SpecCreated) -> Result<(), DomainError> {
-        let mut tx = self.pool.begin().await
+    async fn handle_created(
+        &self,
+        event: &crate::domain::events::SpecCreated,
+    ) -> Result<(), DomainError> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| DomainError::ProjectionError(e.to_string()))?;
 
         // Insert into main projection
@@ -156,30 +162,40 @@ impl ProjectionStore {
         .await
         .map_err(|e| DomainError::ProjectionError(e.to_string()))?;
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::ProjectionError(e.to_string()))?;
 
         // Update cache if enabled
         if let Some(cache) = self.cache.write().await.as_mut() {
-            cache.insert(event.spec_id, SpecProjection {
-                id: event.spec_id,
-                name: event.name.clone(),
-                content: event.content.clone(),
-                description: event.description.clone(),
-                version: 1,
-                state: SpecState::Draft,
-                created_at: event.created_at,
-                updated_at: event.created_at,
-                created_by: event.created_by.clone(),
-                updated_by: event.created_by.clone(),
-            });
+            cache.insert(
+                event.spec_id,
+                SpecProjection {
+                    id: event.spec_id,
+                    name: event.name.clone(),
+                    content: event.content.clone(),
+                    description: event.description.clone(),
+                    version: 1,
+                    state: SpecState::Draft,
+                    created_at: event.created_at,
+                    updated_at: event.created_at,
+                    created_by: event.created_by.clone(),
+                    updated_by: event.created_by.clone(),
+                },
+            );
         }
 
         Ok(())
     }
 
-    async fn handle_updated(&self, event: &crate::domain::events::SpecUpdated) -> Result<(), DomainError> {
-        let mut tx = self.pool.begin().await
+    async fn handle_updated(
+        &self,
+        event: &crate::domain::events::SpecUpdated,
+    ) -> Result<(), DomainError> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| DomainError::ProjectionError(e.to_string()))?;
 
         // Update main projection
@@ -219,7 +235,8 @@ impl ProjectionStore {
         .await
         .map_err(|e| DomainError::ProjectionError(e.to_string()))?;
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::ProjectionError(e.to_string()))?;
 
         // Update cache if enabled
@@ -236,7 +253,10 @@ impl ProjectionStore {
         Ok(())
     }
 
-    async fn handle_state_changed(&self, event: &crate::domain::events::SpecStateChanged) -> Result<(), DomainError> {
+    async fn handle_state_changed(
+        &self,
+        event: &crate::domain::events::SpecStateChanged,
+    ) -> Result<(), DomainError> {
         let state_str = match event.to_state {
             SpecState::Draft => "draft",
             SpecState::Published => "published",
@@ -269,7 +289,7 @@ impl ProjectionStore {
         Ok(())
     }
 
-    /// Query methods for read models
+    // Query methods for read models
 
     pub async fn get_by_id(&self, id: Uuid) -> Result<Option<SpecProjection>, DomainError> {
         // Check cache first
@@ -298,6 +318,7 @@ impl ProjectionStore {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn get_by_name(&self, name: &str) -> Result<Option<SpecProjection>, DomainError> {
         let row = sqlx::query(
             r#"
@@ -345,19 +366,17 @@ impl ProjectionStore {
                 .bind(limit)
                 .bind(offset)
             }
-            None => {
-                sqlx::query(
-                    r#"
+            None => sqlx::query(
+                r#"
                     SELECT id, name, description, version, state, updated_at
                     FROM spec_projections
                     WHERE state != 'deleted'
                     ORDER BY updated_at DESC
                     LIMIT ? OFFSET ?
                     "#,
-                )
-                .bind(limit)
-                .bind(offset)
-            }
+            )
+            .bind(limit)
+            .bind(offset),
         };
 
         let rows = query
@@ -401,7 +420,10 @@ impl ProjectionStore {
         }
     }
 
-    fn row_to_projection(&self, row: sqlx::sqlite::SqliteRow) -> Result<SpecProjection, DomainError> {
+    fn row_to_projection(
+        &self,
+        row: sqlx::sqlite::SqliteRow,
+    ) -> Result<SpecProjection, DomainError> {
         let id_str: String = row.get("id");
         let state_str: String = row.get("state");
         let created_at_str: String = row.get("created_at");
@@ -434,7 +456,10 @@ impl ProjectionStore {
         })
     }
 
-    fn row_to_summary(&self, row: sqlx::sqlite::SqliteRow) -> Result<SpecSummaryProjection, DomainError> {
+    fn row_to_summary(
+        &self,
+        row: sqlx::sqlite::SqliteRow,
+    ) -> Result<SpecSummaryProjection, DomainError> {
         let id_str: String = row.get("id");
         let state_str: String = row.get("state");
         let updated_at_str: String = row.get("updated_at");
