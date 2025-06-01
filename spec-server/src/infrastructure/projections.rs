@@ -57,7 +57,7 @@ impl ProjectionStore {
 
     pub async fn init_schema(&self) -> Result<()> {
         sqlx::query(
-            r#"
+            "
             CREATE TABLE IF NOT EXISTS spec_projections (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -90,7 +90,7 @@ impl ProjectionStore {
                 created_by TEXT NOT NULL,
                 PRIMARY KEY (id, version)
             );
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -123,12 +123,12 @@ impl ProjectionStore {
 
         // Insert into main projection
         sqlx::query(
-            r#"
+            "
             INSERT INTO spec_projections (
                 id, name, content, description, version, state,
                 created_at, updated_at, created_by, updated_by
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
+            ",
         )
         .bind(event.spec_id.to_string())
         .bind(&event.name)
@@ -146,11 +146,11 @@ impl ProjectionStore {
 
         // Insert into version history
         sqlx::query(
-            r#"
+            "
             INSERT INTO spec_version_history (
                 id, version, content, description, created_at, created_by
             ) VALUES (?, ?, ?, ?, ?, ?)
-            "#,
+            ",
         )
         .bind(event.spec_id.to_string())
         .bind(1)
@@ -200,16 +200,16 @@ impl ProjectionStore {
 
         // Update main projection
         sqlx::query(
-            r#"
+            "
             UPDATE spec_projections
             SET content = ?, description = ?, version = ?,
                 updated_at = ?, updated_by = ?
             WHERE id = ?
-            "#,
+            ",
         )
         .bind(&event.content)
         .bind(&event.description)
-        .bind(event.version as i64)
+        .bind(i64::from(event.version))
         .bind(event.updated_at.to_rfc3339())
         .bind(&event.updated_by)
         .bind(event.spec_id.to_string())
@@ -219,14 +219,14 @@ impl ProjectionStore {
 
         // Insert into version history
         sqlx::query(
-            r#"
+            "
             INSERT INTO spec_version_history (
                 id, version, content, description, created_at, created_by
             ) VALUES (?, ?, ?, ?, ?, ?)
-            "#,
+            ",
         )
         .bind(event.spec_id.to_string())
-        .bind(event.version as i64)
+        .bind(i64::from(event.version))
         .bind(&event.content)
         .bind(&event.description)
         .bind(event.updated_at.to_rfc3339())
@@ -242,11 +242,11 @@ impl ProjectionStore {
         // Update cache if enabled
         if let Some(cache) = self.cache.write().await.as_mut() {
             if let Some(proj) = cache.get_mut(&event.spec_id) {
-                proj.content = event.content.clone();
-                proj.description = event.description.clone();
+                proj.content.clone_from(&event.content);
+                proj.description.clone_from(&event.description);
                 proj.version = event.version;
                 proj.updated_at = event.updated_at;
-                proj.updated_by = event.updated_by.clone();
+                proj.updated_by.clone_from(&event.updated_by);
             }
         }
 
@@ -265,11 +265,11 @@ impl ProjectionStore {
         };
 
         sqlx::query(
-            r#"
+            "
             UPDATE spec_projections
             SET state = ?, updated_at = ?
             WHERE id = ?
-            "#,
+            ",
         )
         .bind(state_str)
         .bind(event.changed_at.to_rfc3339())
@@ -300,12 +300,12 @@ impl ProjectionStore {
         }
 
         let row = sqlx::query(
-            r#"
+            "
             SELECT id, name, content, description, version, state,
                    created_at, updated_at, created_by, updated_by
             FROM spec_projections
             WHERE id = ?
-            "#,
+            ",
         )
         .bind(id.to_string())
         .fetch_optional(&self.pool)
@@ -321,12 +321,12 @@ impl ProjectionStore {
     #[allow(dead_code)]
     pub async fn get_by_name(&self, name: &str) -> Result<Option<SpecProjection>, DomainError> {
         let row = sqlx::query(
-            r#"
+            "
             SELECT id, name, content, description, version, state,
                    created_at, updated_at, created_by, updated_by
             FROM spec_projections
             WHERE name = ?
-            "#,
+            ",
         )
         .bind(name)
         .fetch_optional(&self.pool)
@@ -345,38 +345,41 @@ impl ProjectionStore {
         limit: i64,
         offset: i64,
     ) -> Result<Vec<SpecSummaryProjection>, DomainError> {
-        let query = if let Some(s) = state {
-            let state_str = match s {
-                SpecState::Draft => "draft",
-                SpecState::Published => "published",
-                SpecState::Deprecated => "deprecated",
-                SpecState::Deleted => "deleted",
-            };
-            sqlx::query(
-                r#"
-                    SELECT id, name, description, version, state, updated_at
-                    FROM spec_projections
-                    WHERE state = ?
-                    ORDER BY updated_at DESC
-                    LIMIT ? OFFSET ?
-                    "#,
-            )
-            .bind(state_str)
-            .bind(limit)
-            .bind(offset)
-        } else {
-            sqlx::query(
-                r#"
+        let query = state.map_or_else(
+            || {
+                sqlx::query(
+                    "
                     SELECT id, name, description, version, state, updated_at
                     FROM spec_projections
                     WHERE state != 'deleted'
                     ORDER BY updated_at DESC
                     LIMIT ? OFFSET ?
-                    "#,
-            )
-            .bind(limit)
-            .bind(offset)
-        };
+                    ",
+                )
+                .bind(limit)
+                .bind(offset)
+            },
+            |s| {
+                let state_str = match s {
+                    SpecState::Draft => "draft",
+                    SpecState::Published => "published",
+                    SpecState::Deprecated => "deprecated",
+                    SpecState::Deleted => "deleted",
+                };
+                sqlx::query(
+                    "
+                    SELECT id, name, description, version, state, updated_at
+                    FROM spec_projections
+                    WHERE state = ?
+                    ORDER BY updated_at DESC
+                    LIMIT ? OFFSET ?
+                    ",
+                )
+                .bind(state_str)
+                .bind(limit)
+                .bind(offset)
+            },
+        );
 
         let rows = query
             .fetch_all(&self.pool)
@@ -397,11 +400,11 @@ impl ProjectionStore {
         version: u32,
     ) -> Result<Option<(String, Option<String>)>, DomainError> {
         let row = sqlx::query(
-            r#"
+            "
             SELECT content, description
             FROM spec_version_history
             WHERE id = ? AND version = ?
-            "#,
+            ",
         )
         .bind(id.to_string())
         //.bind(version as i64)
@@ -410,15 +413,14 @@ impl ProjectionStore {
         .await
         .map_err(|e| DomainError::ProjectionError(e.to_string()))?;
 
-        if let Some(row) = row {
+        Ok(row.map(|row| {
             let content: String = row.get("content");
             let description: Option<String> = row.get("description");
-            Ok(Some((content, description)))
-        } else {
-            Ok(None)
-        }
+            (content, description)
+        }))
     }
 
+    #[allow(clippy::unused_self, clippy::needless_pass_by_value)]
     fn row_to_projection(
         &self,
         row: sqlx::sqlite::SqliteRow,
@@ -442,7 +444,7 @@ impl ProjectionStore {
             name: row.get("name"),
             content: row.get("content"),
             description: row.get("description"),
-            version: row.get::<i64, _>("version") as u32,
+            version: u32::try_from(row.get::<i64, _>("version")).unwrap_or(0),
             state,
             created_at: DateTime::parse_from_rfc3339(&created_at_str)
                 .map_err(|e| DomainError::ProjectionError(e.to_string()))?
@@ -455,6 +457,7 @@ impl ProjectionStore {
         })
     }
 
+    #[allow(clippy::unused_self, clippy::needless_pass_by_value)]
     fn row_to_summary(
         &self,
         row: sqlx::sqlite::SqliteRow,
@@ -476,7 +479,7 @@ impl ProjectionStore {
                 .map_err(|e| DomainError::ProjectionError(e.to_string()))?,
             name: row.get("name"),
             description: row.get("description"),
-            latest_version: row.get::<i64, _>("version") as u32,
+            latest_version: u32::try_from(row.get::<i64, _>("version")).unwrap_or(0),
             state,
             updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
                 .map_err(|e| DomainError::ProjectionError(e.to_string()))?

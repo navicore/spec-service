@@ -47,7 +47,7 @@ impl EventProcessor {
             match self.process_batch(current_position, batch_size).await {
                 Ok(processed_count) => {
                     if processed_count > 0 {
-                        current_position += processed_count as i64;
+                        current_position += i64::try_from(processed_count).unwrap_or(i64::MAX);
                         info!(
                             "Processed {} events, new position: {}",
                             processed_count, current_position
@@ -83,7 +83,7 @@ impl EventProcessor {
                 .apply_event(aggregate_id, &envelope.event)
                 .await
             {
-                Ok(_) => {
+                Ok(()) => {
                     processed_count += 1;
                 }
                 Err(e) => {
@@ -118,11 +118,7 @@ impl EventProcessorManager {
     pub fn start_background(self) -> (tokio::task::JoinHandle<Result<()>>, mpsc::Sender<()>) {
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
 
-        let processor = EventProcessor::new(
-            self.event_store.clone(),
-            self.projection_store.clone(),
-            shutdown_rx,
-        );
+        let processor = EventProcessor::new(self.event_store, self.projection_store, shutdown_rx);
 
         // TODO: Load last processed position from checkpoint table
         let from_position = 0;
@@ -168,7 +164,7 @@ impl EventProcessorManager {
                     .await?;
             }
 
-            position += events.len() as i64;
+            position += i64::try_from(events.len()).unwrap_or(i64::MAX);
             info!("Rebuilt {} projections", position);
         }
 

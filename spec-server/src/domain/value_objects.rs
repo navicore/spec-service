@@ -66,11 +66,12 @@ impl Version {
         Self(1)
     }
 
-    pub fn increment(&self) -> Self {
+    #[must_use]
+    pub fn increment(self) -> Self {
         Self(self.0 + 1)
     }
 
-    pub fn as_u32(&self) -> u32 {
+    pub fn as_u32(self) -> u32 {
         self.0
     }
 }

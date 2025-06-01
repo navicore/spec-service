@@ -21,7 +21,7 @@ impl SqliteEventStore {
 
     pub async fn init_schema(&self) -> Result<()> {
         sqlx::query(
-            r#"
+            "
             CREATE TABLE IF NOT EXISTS events (
                 event_id TEXT PRIMARY KEY,
                 aggregate_id TEXT NOT NULL,
@@ -44,7 +44,7 @@ impl SqliteEventStore {
                 aggregate_data TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
-            "#,
+            ",
         )
         .execute(&self.pool)
         .await?;
@@ -77,7 +77,7 @@ impl SqliteEventStore {
 
         for (i, event) in events.into_iter().enumerate() {
             let event_id = Uuid::new_v4();
-            let sequence_number = last_sequence + i as i64 + 1;
+            let sequence_number = last_sequence + i64::try_from(i).unwrap_or(0) + 1;
 
             let event_type = match &event {
                 SpecEvent::Created(_) => "created",
@@ -92,12 +92,12 @@ impl SqliteEventStore {
                 .map_err(|e| DomainError::EventStoreError(e.to_string()))?;
 
             sqlx::query(
-                r#"
+                "
                 INSERT INTO events (
                     event_id, aggregate_id, sequence_number, 
                     event_type, event_data, metadata, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                "#,
+                ",
             )
             .bind(event_id.to_string())
             .bind(aggregate_id.to_string())
@@ -134,12 +134,12 @@ impl SqliteEventStore {
         let from_sequence = from_sequence.unwrap_or(0);
 
         let rows = sqlx::query(
-            r#"
+            "
             SELECT event_id, sequence_number, event_data, metadata
             FROM events
             WHERE aggregate_id = ? AND sequence_number > ?
             ORDER BY sequence_number
-            "#,
+            ",
         )
         .bind(aggregate_id.to_string())
         .bind(from_sequence)
@@ -180,13 +180,13 @@ impl SqliteEventStore {
         limit: i64,
     ) -> Result<Vec<(Uuid, EventEnvelope)>, DomainError> {
         let rows = sqlx::query(
-            r#"
+            "
             SELECT rowid, event_id, aggregate_id, sequence_number, event_data, metadata
             FROM events
             WHERE rowid > ?
             ORDER BY rowid
             LIMIT ?
-            "#,
+            ",
         )
         .bind(from_global_sequence)
         .bind(limit)

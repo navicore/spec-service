@@ -11,6 +11,7 @@ use crate::domain::{
 use crate::infrastructure::{event_store::SqliteEventStore, projections::ProjectionStore};
 
 // Import generated protobuf types
+#[allow(clippy::pedantic, clippy::nursery, clippy::all)]
 pub mod spec_proto {
     tonic::include_proto!("spec");
 }
@@ -65,7 +66,7 @@ impl SpecService for SpecServiceImpl {
         };
 
         let events = Spec::create(command)
-            .map_err(|e| Status::invalid_argument(format!("Validation failed: {}", e)))?;
+            .map_err(|e| Status::invalid_argument(format!("Validation failed: {e}")))?;
 
         let spec_id = match &events[0] {
             SpecEvent::Created(e) => e.spec_id,
@@ -82,7 +83,7 @@ impl SpecService for SpecServiceImpl {
         self.event_store
             .append_events(spec_id, events, metadata)
             .await
-            .map_err(|e| Status::internal(format!("Failed to store events: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to store events: {e}")))?;
 
         // Wait briefly for projections
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
@@ -126,7 +127,7 @@ impl SpecService for SpecServiceImpl {
 
         let new_events = spec
             .handle_command(command.into())
-            .map_err(handle_domain_error)?;
+            .map_err(|e| handle_domain_error(&e))?;
 
         let new_version = match &new_events[0] {
             SpecEvent::Updated(e) => e.version,
@@ -208,13 +209,11 @@ impl SpecService for SpecServiceImpl {
     ) -> Result<Response<ListSpecsResponse>, Status> {
         let req = request.into_inner();
 
-        let state_filter = req.state.and_then(|s| {
-            ProtoSpecState::try_from(s)
-                .ok()
-                .and_then(proto_state_to_domain)
-        });
+        let state_filter = req
+            .state
+            .and_then(|s| ProtoSpecState::try_from(s).ok().map(proto_state_to_domain));
 
-        let page_size = req.page_size as i64;
+        let page_size = i64::from(req.page_size);
         let offset = 0; // TODO: Implement page token parsing
 
         let specs = self
@@ -272,7 +271,7 @@ impl SpecService for SpecServiceImpl {
 
         let new_events = spec
             .handle_command(command.into())
-            .map_err(handle_domain_error)?;
+            .map_err(|e| handle_domain_error(&e))?;
 
         self.event_store
             .append_events(spec_id, new_events, EventMetadata::default())
@@ -315,7 +314,7 @@ impl SpecService for SpecServiceImpl {
 
         let new_events = spec
             .handle_command(command.into())
-            .map_err(handle_domain_error)?;
+            .map_err(|e| handle_domain_error(&e))?;
 
         self.event_store
             .append_events(spec_id, new_events, EventMetadata::default())
@@ -390,7 +389,7 @@ impl SpecService for SpecServiceImpl {
 
 // Helper functions
 
-fn handle_domain_error(error: DomainError) -> Status {
+fn handle_domain_error(error: &DomainError) -> Status {
     match error {
         DomainError::SpecNotFound(_) => Status::not_found("Spec not found"),
         DomainError::InvalidStateTransition { .. } => {
@@ -413,19 +412,19 @@ fn domain_state_to_proto(state: SpecState) -> ProtoSpecState {
     }
 }
 
-fn proto_state_to_domain(state: ProtoSpecState) -> Option<SpecState> {
+fn proto_state_to_domain(state: ProtoSpecState) -> SpecState {
     match state {
-        ProtoSpecState::Draft => Some(SpecState::Draft),
-        ProtoSpecState::Published => Some(SpecState::Published),
-        ProtoSpecState::Deprecated => Some(SpecState::Deprecated),
-        ProtoSpecState::Deleted => Some(SpecState::Deleted),
+        ProtoSpecState::Draft => SpecState::Draft,
+        ProtoSpecState::Published => SpecState::Published,
+        ProtoSpecState::Deprecated => SpecState::Deprecated,
+        ProtoSpecState::Deleted => SpecState::Deleted,
     }
 }
 
 fn chrono_to_proto_timestamp(dt: chrono::DateTime<chrono::Utc>) -> prost_types::Timestamp {
     prost_types::Timestamp {
         seconds: dt.timestamp(),
-        nanos: dt.timestamp_subsec_nanos() as i32,
+        nanos: i32::try_from(dt.timestamp_subsec_nanos()).unwrap_or(0),
     }
 }
 

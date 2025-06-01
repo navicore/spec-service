@@ -136,7 +136,7 @@ async fn create_spec(
         created_by: user.to_string(),
     };
 
-    let events = Spec::create(command).map_err(handle_domain_error)?;
+    let events = Spec::create(command).map_err(|e| handle_domain_error(&e))?;
 
     let spec_id = match &events[0] {
         SpecEvent::Created(e) => e.spec_id,
@@ -154,7 +154,7 @@ async fn create_spec(
         .event_store
         .append_events(spec_id, events, metadata)
         .await
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     Ok((
         StatusCode::CREATED,
@@ -173,7 +173,7 @@ async fn get_spec(
         .projection_store
         .get_by_id(id)
         .await
-        .map_err(handle_domain_error)?
+        .map_err(|e| handle_domain_error(&e))?
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
@@ -197,7 +197,7 @@ async fn update_spec(
         .event_store
         .get_events(id, None)
         .await
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     if events.is_empty() {
         return Err((
@@ -210,7 +210,7 @@ async fn update_spec(
     }
 
     let spec = Spec::from_events(events.into_iter().map(|e| e.event).collect())
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     let user = "user@example.com"; // TODO: From auth
 
@@ -223,7 +223,7 @@ async fn update_spec(
 
     let new_events = spec
         .handle_command(command.into())
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     let new_version = match &new_events[0] {
         SpecEvent::Updated(e) => e.version,
@@ -234,7 +234,7 @@ async fn update_spec(
         .event_store
         .append_events(id, new_events, EventMetadata::default())
         .await
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     Ok(Json(UpdateSpecResponse {
         version: new_version,
@@ -250,7 +250,7 @@ async fn publish_spec(
         .event_store
         .get_events(id, None)
         .await
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     if events.is_empty() {
         return Err((
@@ -263,7 +263,7 @@ async fn publish_spec(
     }
 
     let spec = Spec::from_events(events.into_iter().map(|e| e.event).collect())
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     let user = "admin@example.com"; // TODO: From auth, check permissions
 
@@ -275,13 +275,13 @@ async fn publish_spec(
 
     let new_events = spec
         .handle_command(command.into())
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     state
         .event_store
         .append_events(id, new_events, EventMetadata::default())
         .await
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     Ok(StatusCode::OK)
 }
@@ -295,7 +295,7 @@ async fn deprecate_spec(
         .event_store
         .get_events(id, None)
         .await
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     if events.is_empty() {
         return Err((
@@ -308,7 +308,7 @@ async fn deprecate_spec(
     }
 
     let spec = Spec::from_events(events.into_iter().map(|e| e.event).collect())
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     let user = "admin@example.com"; // TODO: From auth, check permissions
 
@@ -320,13 +320,13 @@ async fn deprecate_spec(
 
     let new_events = spec
         .handle_command(command.into())
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     state
         .event_store
         .append_events(id, new_events, EventMetadata::default())
         .await
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     Ok(StatusCode::OK)
 }
@@ -350,7 +350,7 @@ async fn list_specs(
         .projection_store
         .list_by_state(state_filter, limit, offset)
         .await
-        .map_err(handle_domain_error)?;
+        .map_err(|e| handle_domain_error(&e))?;
 
     let total = specs.len();
 
@@ -370,7 +370,7 @@ async fn get_spec_version(
         .projection_store
         .get_version(id, version)
         .await
-        .map_err(handle_domain_error)?
+        .map_err(|e| handle_domain_error(&e))?
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
@@ -395,8 +395,8 @@ async fn health_check() -> StatusCode {
 
 // Helper functions
 
-fn handle_domain_error(error: DomainError) -> (StatusCode, Json<ErrorResponse>) {
-    let (status, message) = match &error {
+fn handle_domain_error(error: &DomainError) -> (StatusCode, Json<ErrorResponse>) {
+    let (status, message) = match error {
         DomainError::SpecNotFound(_) => (StatusCode::NOT_FOUND, "Spec not found"),
         DomainError::InvalidStateTransition { .. } => {
             (StatusCode::BAD_REQUEST, "Invalid state transition")
@@ -449,18 +449,18 @@ fn summary_to_response(summary: SpecSummaryProjection) -> SpecSummaryResponse {
 // Command conversion implementations
 impl From<UpdateSpec> for crate::domain::commands::SpecCommand {
     fn from(cmd: UpdateSpec) -> Self {
-        crate::domain::commands::SpecCommand::Update(cmd)
+        Self::Update(cmd)
     }
 }
 
 impl From<PublishSpec> for crate::domain::commands::SpecCommand {
     fn from(cmd: PublishSpec) -> Self {
-        crate::domain::commands::SpecCommand::Publish(cmd)
+        Self::Publish(cmd)
     }
 }
 
 impl From<DeprecateSpec> for crate::domain::commands::SpecCommand {
     fn from(cmd: DeprecateSpec) -> Self {
-        crate::domain::commands::SpecCommand::Deprecate(cmd)
+        Self::Deprecate(cmd)
     }
 }

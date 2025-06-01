@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use super::{
-    commands::*,
+    commands::{CreateSpec, DeleteSpec, DeprecateSpec, PublishSpec, SpecCommand, UpdateSpec},
     errors::DomainError,
     events::{SpecCreated, SpecEvent, SpecState, SpecStateChanged, SpecUpdated},
     value_objects::{SpecContent, SpecName, Version},
@@ -131,6 +131,7 @@ impl Spec {
         })])
     }
 
+    #[must_use]
     pub fn apply_event(mut self, event: &SpecEvent) -> Self {
         match event {
             SpecEvent::Created(_e) => {
@@ -142,7 +143,7 @@ impl Spec {
                     self.description = Some(desc.clone());
                 }
                 self.version = Version::new(e.version);
-                self.updated_by = e.updated_by.clone();
+                self.updated_by.clone_from(&e.updated_by);
                 self.updated_at = e.updated_at;
             }
             SpecEvent::StateChanged(e) => {
