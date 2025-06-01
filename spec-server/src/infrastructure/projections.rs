@@ -71,13 +71,13 @@ impl ProjectionStore {
                 updated_by TEXT NOT NULL
             );
 
-            CREATE INDEX IF NOT EXISTS idx_spec_projections_name 
+            CREATE INDEX IF NOT EXISTS idx_spec_projections_name
             ON spec_projections(name);
 
-            CREATE INDEX IF NOT EXISTS idx_spec_projections_state 
+            CREATE INDEX IF NOT EXISTS idx_spec_projections_state
             ON spec_projections(state);
 
-            CREATE INDEX IF NOT EXISTS idx_spec_projections_updated 
+            CREATE INDEX IF NOT EXISTS idx_spec_projections_updated
             ON spec_projections(updated_at DESC);
 
             -- Version history for querying specific versions
@@ -202,7 +202,7 @@ impl ProjectionStore {
         sqlx::query(
             r#"
             UPDATE spec_projections
-            SET content = ?, description = ?, version = ?, 
+            SET content = ?, description = ?, version = ?,
                 updated_at = ?, updated_by = ?
             WHERE id = ?
             "#,
@@ -345,28 +345,27 @@ impl ProjectionStore {
         limit: i64,
         offset: i64,
     ) -> Result<Vec<SpecSummaryProjection>, DomainError> {
-        let query = match state {
-            Some(s) => {
-                let state_str = match s {
-                    SpecState::Draft => "draft",
-                    SpecState::Published => "published",
-                    SpecState::Deprecated => "deprecated",
-                    SpecState::Deleted => "deleted",
-                };
-                sqlx::query(
-                    r#"
+        let query = if let Some(s) = state {
+            let state_str = match s {
+                SpecState::Draft => "draft",
+                SpecState::Published => "published",
+                SpecState::Deprecated => "deprecated",
+                SpecState::Deleted => "deleted",
+            };
+            sqlx::query(
+                r#"
                     SELECT id, name, description, version, state, updated_at
                     FROM spec_projections
                     WHERE state = ?
                     ORDER BY updated_at DESC
                     LIMIT ? OFFSET ?
                     "#,
-                )
-                .bind(state_str)
-                .bind(limit)
-                .bind(offset)
-            }
-            None => sqlx::query(
+            )
+            .bind(state_str)
+            .bind(limit)
+            .bind(offset)
+        } else {
+            sqlx::query(
                 r#"
                     SELECT id, name, description, version, state, updated_at
                     FROM spec_projections
@@ -376,7 +375,7 @@ impl ProjectionStore {
                     "#,
             )
             .bind(limit)
-            .bind(offset),
+            .bind(offset)
         };
 
         let rows = query
@@ -405,18 +404,18 @@ impl ProjectionStore {
             "#,
         )
         .bind(id.to_string())
-        .bind(version as i64)
+        //.bind(version as i64)
+        .bind(i64::from(version))
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| DomainError::ProjectionError(e.to_string()))?;
 
-        match row {
-            Some(row) => {
-                let content: String = row.get("content");
-                let description: Option<String> = row.get("description");
-                Ok(Some((content, description)))
-            }
-            None => Ok(None),
+        if let Some(row) = row {
+            let content: String = row.get("content");
+            let description: Option<String> = row.get("description");
+            Ok(Some((content, description)))
+        } else {
+            Ok(None)
         }
     }
 
