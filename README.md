@@ -37,6 +37,14 @@ Users interact with intuitive state-based APIs while the system maintains a comp
 - **Query Current State**: Reconstructs from event stream
 - **Query History**: Direct access to all events
 
+## Prerequisites
+
+- Rust 1.70+ (install from [rustup.rs](https://rustup.rs/))
+- Protocol Buffers compiler (`protoc`) for gRPC support:
+  - macOS: `brew install protobuf`
+  - Ubuntu/Debian: `sudo apt-get install protobuf-compiler`
+  - Other: See [protobuf installation docs](https://grpc.io/docs/protoc-installation/)
+
 ## Getting Started
 
 ### Running the Server
