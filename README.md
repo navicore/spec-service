@@ -1,3 +1,8 @@
+<!-- ghmig:moved -->
+> **This repository has moved to [https://git.navicore.tech/navicore/spec-service](https://git.navicore.tech/navicore/spec-service).**
+>
+> The GitHub copy is archived and no longer maintained.
+
 # Spec Service
 
 A general-purpose service for managing the lifecycle and publishing of YAML specifications using event sourcing.
